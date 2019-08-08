@@ -92,6 +92,205 @@ func TestResolving(t *testing.T) {
 				},
 			},
 		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostbox.org",
+				qtype: "MX",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "MX",
+					value: "20 mx2.ghostbox.org.",
+				},
+			},
+			extra: []testResult{
+				testResult{
+					name:  "mx2.ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.176",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostbox.org",
+				qtype: "NS",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "NS",
+					value: "q3.ghostbox.org.",
+				},
+			},
+			extra: []testResult{
+				testResult{
+					name:  "q3.ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.175",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostbox.org",
+				qtype: "NS",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "NS",
+					value: "q3.ghostbox.org.",
+				},
+			},
+			extra: []testResult{
+				testResult{
+					name:  "q3.ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.175",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "noname.ghostbox.org",
+				qtype: "A",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "noname.ghostbox.org.",
+					qtype: "CNAME",
+					value: "ghostbox.org",
+				},
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.175",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "noname.ghostbox.org",
+				qtype: "A",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "noname.ghostbox.org.",
+					qtype: "CNAME",
+					value: "ghostbox.org",
+				},
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.175",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "noname.ghostbox.org",
+				qtype: "CNAME",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "noname.ghostbox.org.",
+					qtype: "CNAME",
+					value: "ghostbox.org",
+				},
+			},
+			extra: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.175",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "noname.ghostbox.org",
+				qtype: "CNAME",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "noname.ghostbox.org.",
+					qtype: "CNAME",
+					value: "ghostbox.org",
+				},
+			},
+			extra: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "A",
+					value: "95.142.102.175",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostbox.org",
+				qtype: "SOA",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "SOA",
+					value: "q1.ghostbox.org.",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostbox.org",
+				qtype: "SOA",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ghostbox.org.",
+					qtype: "SOA",
+					value: "q1.ghostbox.org.",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostboxnotexisting.org",
+				qtype: "A",
+			},
+			ns: []testResult{
+				testResult{
+					name:  "org.",
+					qtype: "SOA",
+					value: "",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ghostboxnotexisting.org",
+				qtype: "A",
+			},
+			ns: []testResult{
+				testResult{
+					name:  "org.",
+					qtype: "SOA",
+					value: "",
+				},
+			},
+		},
 	}
 
 	resolver := New()
@@ -114,14 +313,14 @@ func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 		ok := 0
 		for _, rr := range rrs.Answer {
 			//r, err := regexp.Compile(fmt.Sprintf("/%s\\t\\d+.*%s.*%s/", result.name, result.qtype, result.value))
-			r, err := regexp.Compile(fmt.Sprintf("^%s\\t+\\d+.*%s\\s+%s", result.name, result.qtype, result.value))
+			r, err := regexp.Compile(fmt.Sprintf("^%s\\t+\\d+.*%s\\t+%s", result.name, result.qtype, result.value))
 			assert.Nil(t, err)
 			//if rr.String()
 			if r.MatchString(rr.String()) {
 				ok++
 			}
 		}
-		assert.Equal(t, len(record.answer), ok)
+		assert.Equal(t, 1, ok, "answer record")
 	}
 
 	for _, result := range record.ns {
@@ -135,7 +334,7 @@ func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 				ok++
 			}
 		}
-		assert.Equal(t, len(record.ns), ok)
+		assert.Equal(t, 1, ok, "ns record")
 	}
 
 	for _, result := range record.extra {
@@ -149,7 +348,7 @@ func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 				ok++
 			}
 		}
-		assert.Equal(t, len(record.extra), ok)
+		assert.Equal(t, 1, ok, "extra record")
 	}
 
 }

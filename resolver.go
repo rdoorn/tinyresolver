@@ -47,8 +47,17 @@ func (r *Resolver) Resolve(qname, qtype string) (*dns.Msg, error) {
 
 // resolveWithContext resolves a query, and returns all results, with a context handler
 func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, depth int) (*dns.Msg, error) {
-	log.Printf("depth: %d resolving: %s %s", depth, qname, qtype)
-	return r.queryWithCache(ctx, qname, qtype, depth)
+	msg, err := r.queryWithCache(ctx, qname, qtype, depth)
+	if qtype == "A" && len(findA(msg.Answer)) == 0 {
+		cname := findCNAME(msg.Answer)
+		if len(cname) > 0 {
+			msg2, err := r.queryWithCache(ctx, cname[0], "A", depth)
+			if err == nil {
+				msg.Answer = append(msg.Answer, msg2.Answer...)
+			}
+		}
+	}
+	return msg, err
 }
 
 // queryWithCache
@@ -57,10 +66,9 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	if depth > MaxDepth {
 		return nil, ErrMaxDepth
 	}
-	msg := &dns.Msg{}
 
 	// find requested record in cache
-	msg.Answer = r.cache.get(qname, qtype)
+	msg := r.cache.get(qname, qtype)
 	if len(msg.Answer) != 0 {
 		log.Printf("query %d done cache", depth)
 		return msg, nil
@@ -68,7 +76,8 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 
 	// if record is not in cache, find the NS for the record in cache
 	// find requested record in cache
-	nsrrs := r.cache.get(qname, "NS")
+	msg = r.cache.get(qname, "NS")
+	nsrrs := msg.Answer
 	if len(nsrrs) == 0 {
 		// if record is not in cache, ask for the parent NS
 		pname, ok := parent(qname)
@@ -109,15 +118,7 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	}
 
 	// add record to cache
-	for _, rr := range rmsg.Ns {
-		r.cache.add(rr)
-	}
-	for _, rr := range rmsg.Answer {
-		r.cache.add(rr)
-	}
-	for _, rr := range rmsg.Extra {
-		r.cache.add(rr)
-	}
+	r.cache.addMsg(rmsg)
 
 	log.Printf("query %d message: %s %s %+v", depth, qname, qtype, rmsg)
 
@@ -213,9 +214,32 @@ func findNS(rrs []dns.RR) (res []string) {
 	return
 }
 
+func findMX(rrs []dns.RR) (res []string) {
+	for _, rr := range rrs {
+		if rr.Header().Rrtype == dns.TypeMX {
+			value := strings.Split(rr.String(), "\t")[4]
+			res = append(res, strings.Split(value, " ")[1])
+		}
+	}
+	return
+}
+
 func findA(rrs []dns.RR) (res []string) {
 	for _, rr := range rrs {
 		if rr.Header().Rrtype == dns.TypeA {
+			ip := strings.Split(rr.String(), "\t")[4]
+			/*ipp := net.ParseIP(ip)
+			if ipp.To4() == nil {*/
+			res = append(res, ip)
+			//}
+		}
+	}
+	return
+}
+
+func findCNAME(rrs []dns.RR) (res []string) {
+	for _, rr := range rrs {
+		if rr.Header().Rrtype == dns.TypeCNAME {
 			ip := strings.Split(rr.String(), "\t")[4]
 			/*ipp := net.ParseIP(ip)
 			if ipp.To4() == nil {*/
