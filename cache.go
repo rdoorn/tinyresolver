@@ -15,7 +15,7 @@ type rrDetails struct {
 }
 
 type cache struct {
-	rrs []dns.RR
+	rrs []rrDetails
 }
 
 func newCache() *cache {
@@ -50,30 +50,34 @@ func (c *cache) addRR(rr dns.RR) {
 
 		// get record without TTL
 		newRR := removeSliceString(strings.Split(rr.String(), "\t"), 1)
-		cachedRR := removeSliceString(strings.Split(cachedrr.String(), "\t"), 1)
+		cachedRR := removeSliceString(strings.Split(cachedrr.rr.String(), "\t"), 1)
 		if reflect.DeepEqual(newRR, cachedRR) {
 			// record already exists
-			// if cached TTL > new TTL ,do nothing
-			if cachedrr.Header().Ttl > rr.Header().Ttl {
-				return
+			newExpire := time.Now().Add(time.Duration(rr.Header().Ttl) * time.Second)
+			if newExpire.After(cachedrr.expires) {
+				c.rrs[id].expires = newExpire
 			}
-
-			// if newTTL > cached TTL, update TTL
-			c.rrs[id].Header().Ttl = rr.Header().Ttl
 			return
 		}
 	}
-	c.rrs = append(c.rrs, rr)
+	rrDetail := rrDetails{
+		rr:      rr,
+		expires: time.Now().Add(time.Duration(rr.Header().Ttl) * time.Second),
+	}
+	c.rrs = append(c.rrs, rrDetail)
 }
 
 func (c *cache) get(qname, qtype string) *dns.Msg {
 	msg := &dns.Msg{}
 
+	now := time.Now()
 	dtype := dns.StringToType[qtype]
 	for _, rr := range c.rrs {
-		if rr.Header().Rrtype == dtype {
-			if rr.Header().Name == qname {
-				msg.Answer = append(msg.Answer, rr)
+		if rr.rr.Header().Rrtype == dtype {
+			if rr.rr.Header().Name == qname {
+				//log.Printf("expires: %v + in seconds = %v", rr.expires, rr.expires.Sub(now)/time.Second)
+				rr.rr.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
+				msg.Answer = append(msg.Answer, rr.rr)
 			}
 		}
 	}

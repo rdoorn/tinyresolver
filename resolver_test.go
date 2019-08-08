@@ -340,7 +340,6 @@ func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 	for _, result := range record.extra {
 		ok := 0
 		for _, rr := range rrs.Extra {
-			//r, err := regexp.Compile(fmt.Sprintf("/%s\\t\\d+.*%s.*%s/", result.name, result.qtype, result.value))
 			r, err := regexp.Compile(fmt.Sprintf("^%s\\t+\\d+.*%s\\s+%s", result.name, result.qtype, result.value))
 			assert.Nil(t, err)
 			//if rr.String()
