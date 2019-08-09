@@ -57,6 +57,15 @@ func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, 
 			}
 		}
 	}
+	if qtype == "NS" && len(findA(msg.Extra)) == 0 {
+		ns := findNS(msg.Answer)
+		if len(ns) > 0 {
+			msg2, err := r.queryWithCache(ctx, ns[0], "A", depth)
+			if err == nil {
+				msg.Extra = append(msg.Extra, msg2.Extra...)
+			}
+		}
+	}
 	return msg, err
 }
 

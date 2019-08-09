@@ -340,6 +340,19 @@ func TestResolving(t *testing.T) {
 				},
 			},
 		},
+		testRecord{
+			query: testQuery{
+				name:  "102.142.95.in-addr.arpa",
+				qtype: "NS",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "102.142.95.in-addr.arpa.",
+					qtype: "NS",
+					value: "ns1.atom86.net.",
+				},
+			},
+		},
 	}
 
 	resolver := New()
