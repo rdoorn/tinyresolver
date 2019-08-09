@@ -48,14 +48,14 @@ func (r *Resolver) Resolve(qname, qtype string) (*dns.Msg, error) {
 // resolveWithContext resolves a query, and returns all results, with a context handler
 func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, depth int) (*dns.Msg, error) {
 	msg, err := r.queryWithCache(ctx, qname, qtype, depth)
-	if err != nil || msg == nil {
+	if err != nil {
 		return nil, err
 	}
 	if qtype == "A" && len(findA(msg.Answer)) == 0 {
 		cname := findCNAME(msg.Answer)
 		if len(cname) > 0 {
 			msg2, err := r.queryWithCache(ctx, cname[0], "A", depth)
-			if err == nil && msg2 != nil {
+			if err == nil {
 				msg.Answer = append(msg.Answer, msg2.Answer...)
 			}
 		}
@@ -64,7 +64,7 @@ func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, 
 		ns := findNS(msg.Answer)
 		if len(ns) > 0 {
 			msg2, err := r.queryWithCache(ctx, ns[0], "A", depth)
-			if err == nil && msg2 != nil {
+			if err == nil {
 				msg.Extra = append(msg.Extra, msg2.Extra...)
 			}
 		}
@@ -239,6 +239,9 @@ func (r *Resolver) querySingle(ctx context.Context, ns string, qname, qtype stri
 	client := &dns.Client{Timeout: r.timeout} // client must finish within remaining timeout
 	rmsg, dur, err := client.ExchangeContext(ctx, qmsg, nsip[0]+":53")
 	log.Printf("query on %s of %s %s got result: %+v dur:%v err:%s", ns, qname, qtype, rmsg, dur, err)
+	if err != nil {
+		return nil, err
+	}
 
 	return rmsg, nil
 }
