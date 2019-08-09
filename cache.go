@@ -30,6 +30,9 @@ func newCache() *cache {
 }
 
 func (c *cache) addMsg(rmsg *dns.Msg) {
+	if rmsg == nil {
+		return
+	}
 	for _, rr := range rmsg.Ns {
 		c.addRR(rr)
 	}
