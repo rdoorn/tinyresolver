@@ -14,7 +14,7 @@ import (
 const (
 	Timeout        = 2 * time.Second // timeout for the entire request
 	MaxDepth       = 20              // max recursive depth to query
-	MaxNameservers = 4               // max name servers to query simultainiously
+	MaxNameservers = 1               // max name servers to query simultainiously
 )
 
 var (
@@ -156,7 +156,8 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 	log.Printf("-------------------- starting Multiple queries on %v for %s %s", ns, qname, qtype)
 
 	// setup context
-	ctx2, cancel := context.WithTimeout(context.Background(), r.timeout)
+	//ctx2, cancel := context.WithTimeout(context.Background(), r.timeout)
+	ctx2, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
 	// count instances started

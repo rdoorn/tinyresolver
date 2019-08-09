@@ -353,6 +353,27 @@ func TestResolving(t *testing.T) {
 				},
 			},
 		},
+
+		testRecord{
+			query: testQuery{
+				name:  "dns.tiscali.it.",
+				qtype: "NS",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "dns.tiscali.it.",
+					qtype: "NS",
+					value: "hannibal.dns.tiscali.it.",
+				},
+			},
+			extra: []testResult{
+				testResult{
+					name:  "hannibal.dns.tiscali.it.",
+					qtype: "A",
+					value: "94.32.102.60",
+				},
+			},
+		},
 	}
 
 	resolver := New()
