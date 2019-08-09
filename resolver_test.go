@@ -63,13 +63,6 @@ func TestResolving(t *testing.T) {
 					value: "95.142.102.175",
 				},
 			},
-			/*ns: []testResult{
-				testResult{
-					name:  "ghostbox.org.",
-					qtype: "NS",
-					value: "q3.ghostbox.org",
-				},
-			},*/
 		},
 
 		testRecord{
@@ -288,6 +281,62 @@ func TestResolving(t *testing.T) {
 					name:  "org.",
 					qtype: "SOA",
 					value: "",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "175.102.142.95.in-addr.arpa",
+				qtype: "PTR",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "175.102.142.95.in-addr.arpa.",
+					qtype: "PTR",
+					value: "a4091.mcehosting.atom86.net.",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "175.102.142.95.in-addr.arpa",
+				qtype: "PTR",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "175.102.142.95.in-addr.arpa.",
+					qtype: "PTR",
+					value: "a4091.mcehosting.atom86.net.",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "175.102.142.95.in-addr.arpa",
+				qtype: "A",
+			},
+			ns: []testResult{
+				testResult{
+					name:  "102.142.95.in-addr.arpa.",
+					qtype: "SOA",
+					value: "ns1.atom86.net.",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "102.142.95.in-addr.arpa",
+				qtype: "NS",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "102.142.95.in-addr.arpa.",
+					qtype: "NS",
+					value: "ns1.atom86.net.",
 				},
 			},
 		},
@@ -308,6 +357,11 @@ func TestResolving(t *testing.T) {
 func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 	rrs, err := r.Resolve(record.query.name, record.query.qtype)
 	log.Printf("rr: %+v err:%s", rrs, err)
+
+	assert.Nil(t, err)
+	if rrs == nil {
+		assert.FailNow(t, "failed to resolve")
+	}
 
 	for _, result := range record.answer {
 		ok := 0

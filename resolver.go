@@ -87,11 +87,11 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 		}
 		var err error
 		msg, err := r.queryWithCache(ctx, pname, "NS", depth+1)
-		log.Printf("query %d done query parent %s %s %s %+v", depth, pname, "NS", err, nsrrs)
+		log.Printf("query %d query on %s %s returned: %+v", depth, pname, "NS", msg)
 		if err != nil {
 			return nil, ErrNoNS
 		}
-		log.Printf("qwc := %+v", msg)
+		//log.Printf("qwc := %+v", msg)
 		if len(msg.Answer) == 0 {
 			nsrrs = msg.Ns
 		} else {
@@ -113,7 +113,7 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	rmsg, err := r.queryMultiple(ctx, ns, qname, qtype)
 
 	if err != nil {
-		log.Printf("query %d done %s", depth, err)
+		log.Printf("query multiple %d done %s", depth, err)
 		return nil, err
 	}
 
@@ -125,39 +125,78 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	return rmsg, nil
 }
 
+type queryAnswer struct {
+	msg    *dns.Msg
+	err    error
+	server string
+}
+
 func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype string) (*dns.Msg, error) {
-	m := make(chan dns.Msg)
-	e := make(chan error)
-	ctx2, cancel := context.WithTimeout(ctx, r.timeout)
+	qa := make(chan queryAnswer)
+
+	// Synchronously query this DNS server
+	/*start := time.Now()
+	timeout := r.timeout // belt and suspenders, since ctx has a deadline from ResolveErr
+	if dl, ok := ctx.Deadline(); ok {
+		timeout = dl.Sub(start)
+	}*/
+
+	log.Printf("-------------------- starting Multiple queries on %v for %s %s", ns, qname, qtype)
+
+	// setup context
+	ctx2, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
+
+	// count instances started
 	count := 0
 	for i := 0; i < MaxNameservers && i < len(ns); i++ {
+		log.Printf("-------------------- starting queries on %v for %s %s", ns[i], qname, qtype)
 		count++
 		nsq := ns[i]
 		go func() {
-			msg, err := r.querySingle(ctx2, nsq, qname, qtype)
-			m <- *msg
-			e <- err
+			r.querySingleChan(ctx2, nsq, qname, qtype, qa)
 		}()
 	}
+
 	for {
 		select {
-		case msg := <-m:
-			err := <-e
+		case answer := <-qa:
+			log.Printf("dns select got answer from %s", answer.server)
 			count--
-			if err == nil && (len(msg.Ns) > 0 || len(msg.Answer) > 0) {
-				return &msg, err
+			// if we have a valid response or we ran out of servers to query, return the resolt
+			if answer.err == nil || count == 0 {
+				log.Printf("first server to reply without error: %s err: %s count:%d", answer.server, answer.err, count)
+				return answer.msg, answer.err
 			}
-			if count == 0 {
-				return &msg, err
-			}
-		case <-ctx2.Done():
-			log.Printf("ctx2 got canceled: %s", ctx2.Err())
-			return nil, ctx2.Err()
+		case <-ctx.Done():
+			log.Printf("query multiple ctx got canceled: %s", ctx.Err())
+			return nil, ctx.Err()
 		}
 	}
 }
 
+func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype string, answer chan queryAnswer) {
+	msg, err := r.querySingle(ctx, ns, qname, qtype)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("runCancel %s stop", ns)
+			return
+		default:
+			log.Printf("runOne %s stop", ns)
+
+			answer <- queryAnswer{
+				msg:    msg,
+				err:    err,
+				server: ns,
+			}
+			return
+		}
+	}
+}
+
+//func (r *Resolver) querySingle(ctx context.Context, ns string, qname, qtype string) (*dns.Msg, error) {
 func (r *Resolver) querySingle(ctx context.Context, ns string, qname, qtype string) (*dns.Msg, error) {
 	dtype := dns.StringToType[qtype]
 	if dtype == 0 {
@@ -167,23 +206,26 @@ func (r *Resolver) querySingle(ctx context.Context, ns string, qname, qtype stri
 	qmsg.SetQuestion(qname, dtype)
 	qmsg.MsgHdr.RecursionDesired = false
 
-	nsa, _ := r.queryWithCache(ctx, ns, "A", 1)
+	nsa, err := r.queryWithCache(ctx, ns, "A", 1)
+	if err != nil {
+		return nil, err
+	}
 	nsip := findA(nsa.Answer)
 	if len(nsip) == 0 {
 		return nil, fmt.Errorf("failed to get A record for %s", ns)
 	}
 
 	// Synchronously query this DNS server
-	start := time.Now()
+	/*start := time.Now()
 	timeout := r.timeout // belt and suspenders, since ctx has a deadline from ResolveErr
 	if dl, ok := ctx.Deadline(); ok {
 		timeout = dl.Sub(start)
-	}
+	}*/
 
 	log.Printf("doing a remote query on %s for %s %s", nsip[0], qname, qtype)
-	client := &dns.Client{Timeout: timeout} // client must finish within remaining timeout
+	client := &dns.Client{Timeout: r.timeout} // client must finish within remaining timeout
 	rmsg, dur, err := client.ExchangeContext(ctx, qmsg, nsip[0]+":53")
-	log.Printf("got result: %+v dur:%v err:%s", rmsg, dur, err)
+	log.Printf("query on %s of %s %s got result: %+v dur:%v err:%s", ns, qname, qtype, rmsg, dur, err)
 
 	return rmsg, nil
 }
@@ -207,7 +249,7 @@ func findNS(rrs []dns.RR) (res []string) {
 		}
 		if rr.Header().Rrtype == dns.TypeSOA {
 			soa := strings.Split(rr.String(), "\t")[4]
-			host := strings.Split(soa, " ")[1]
+			host := strings.Split(soa, " ")[0]
 			res = append(res, host)
 		}
 	}

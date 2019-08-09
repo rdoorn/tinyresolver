@@ -42,7 +42,13 @@ func (c *cache) addMsg(rmsg *dns.Msg) {
 }
 
 func (c *cache) addRR(rr dns.RR) {
-	log.Printf("cache adding: %+v", rr)
+
+	log.Printf("RR type: %T", rr)
+	rr.Header().Name = toLowerFQDN(rr.Header().Name)
+	switch rr.(type) {
+	case *dns.NS:
+		rr.(*dns.NS).Ns = toLowerFQDN(rr.(*dns.NS).Ns)
+	}
 	for id, cachedrr := range c.rrs {
 		/*now := time.Now()
 		expires := now.Add(time.Duration(rr.Header().Ttl) * time.Second)
@@ -64,6 +70,7 @@ func (c *cache) addRR(rr dns.RR) {
 		rr:      rr,
 		expires: time.Now().Add(time.Duration(rr.Header().Ttl) * time.Second),
 	}
+	log.Printf("cache adding: %+v", rr)
 	c.rrs = append(c.rrs, rrDetail)
 }
 
@@ -71,15 +78,18 @@ func (c *cache) get(qname, qtype string) *dns.Msg {
 	msg := &dns.Msg{}
 
 	now := time.Now()
+	qname = toLowerFQDN(qname)
 	dtype := dns.StringToType[qtype]
 	for _, rr := range c.rrs {
-		if rr.rr.Header().Rrtype == dtype {
-			if rr.rr.Header().Name == qname {
-				//log.Printf("expires: %v + in seconds = %v", rr.expires, rr.expires.Sub(now)/time.Second)
-				rr.rr.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
-				msg.Answer = append(msg.Answer, rr.rr)
-			}
+		if rr.rr.Header().Rrtype == dtype && rr.rr.Header().Name == qname && now.Before(rr.expires) {
+
+			//log.Printf("expires: %v + in seconds = %v", rr.expires, rr.expires.Sub(now)/time.Second)
+			rr.rr.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
+			msg.Answer = append(msg.Answer, rr.rr)
 		}
+	}
+	if len(msg.Answer) == 0 {
+		return msg
 	}
 
 	switch qtype {
