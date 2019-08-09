@@ -101,7 +101,7 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 		msg, err := r.queryWithCache(ctx, pname, "NS", depth+1)
 		log.Printf("query %d query on %s %s returned: %+v", depth, pname, "NS", msg)
 		if err != nil {
-			return nil, ErrNoNS
+			return nil, err
 		}
 		//log.Printf("qwc := %+v", msg)
 		if len(msg.Answer) == 0 {
@@ -124,6 +124,7 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	// if not in cache, find record on available NS's
 	rmsg, err := r.queryMultiple(ctx, ns, qname, qtype)
 
+	log.Printf("XXX query multiple %d done %s", depth, err)
 	if err != nil {
 		log.Printf("query multiple %d done %s", depth, err)
 		return nil, err
@@ -178,7 +179,7 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 			count--
 			// if we have a valid response or we ran out of servers to query, return the resolt
 			if answer.err == nil || count == 0 {
-				log.Printf("first server to reply without error: %s err: %s count:%d", answer.server, answer.err, count)
+				log.Printf("first server to reply without error: %s err: %s count:%d msg:%v", answer.server, answer.err, count, answer.msg)
 				return answer.msg, answer.err
 			}
 		case <-ctx.Done():
@@ -190,7 +191,7 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 
 func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype string, answer chan queryAnswer) {
 	msg, err := r.querySingle(ctx, ns, qname, qtype)
-
+	log.Printf("querySinle returned: msg: %v, err: %s", msg, err)
 	for {
 		select {
 		case <-ctx.Done():
