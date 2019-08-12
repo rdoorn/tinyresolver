@@ -374,6 +374,21 @@ func TestResolving(t *testing.T) {
 				},
 			},
 		},
+		/*
+			testRecord{
+				query: testQuery{
+					name:  "example.com",
+					qtype: "A",
+				},
+				answer: []testResult{
+					testResult{
+						name:  "example.com.",
+						qtype: "A",
+						value: "93.184.216.34",
+					},
+				},
+			},
+		*/
 	}
 
 	resolver := New()

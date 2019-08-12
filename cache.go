@@ -18,6 +18,7 @@ type cache struct {
 	rrs []rrDetails
 }
 
+// newCache creates a new cache pool
 func newCache() *cache {
 	c := &cache{}
 	for t := range dns.ParseZone(strings.NewReader(root), "", "") {
@@ -29,6 +30,7 @@ func newCache() *cache {
 	return c
 }
 
+// addMsg adds all entries in a message to the cache
 func (c *cache) addMsg(rmsg *dns.Msg) {
 	if rmsg == nil {
 		return
@@ -44,19 +46,14 @@ func (c *cache) addMsg(rmsg *dns.Msg) {
 	}
 }
 
+// addRR adds a single record to the cache
 func (c *cache) addRR(rr dns.RR) {
-
-	log.Printf("RR type: %T", rr)
 	rr.Header().Name = toLowerFQDN(rr.Header().Name)
 	switch rr.(type) {
 	case *dns.NS:
 		rr.(*dns.NS).Ns = toLowerFQDN(rr.(*dns.NS).Ns)
 	}
 	for id, cachedrr := range c.rrs {
-		/*now := time.Now()
-		expires := now.Add(time.Duration(rr.Header().Ttl) * time.Second)
-		rr.Header().Ttl = int64(expires / time.Second)*/
-
 		// get record without TTL
 		newRR := removeSliceString(strings.Split(rr.String(), "\t"), 1)
 		cachedRR := removeSliceString(strings.Split(cachedrr.rr.String(), "\t"), 1)
@@ -77,6 +74,7 @@ func (c *cache) addRR(rr dns.RR) {
 	c.rrs = append(c.rrs, rrDetail)
 }
 
+// get retreives a query from the cache
 func (c *cache) get(qname, qtype string) *dns.Msg {
 	msg := &dns.Msg{}
 
@@ -115,14 +113,11 @@ func (c *cache) get(qname, qtype string) *dns.Msg {
 			msg.Extra = append(msg.Extra, t.Answer...)
 		}
 	}
-	/*if len(rrs) > 0 {
-		log.Printf("returning cached RRs: %+v", rrs)
-	}*/
 
-	//msg.Answer = rrs
 	return msg
 }
 
+// removeSliceString removes a string from a slice of strings
 func removeSliceString(slice []string, s int) []string {
 	return append(slice[:s], slice[s+1:]...)
 }

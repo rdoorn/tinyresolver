@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -12,22 +11,30 @@ import (
 )
 
 const (
-	Timeout        = 2 * time.Second // timeout for the entire request
-	MaxDepth       = 20              // max recursive depth to query
-	MaxNameservers = 1               // max name servers to query simultainiously
+	// Timeout is the time in seconds the request is allowed to take before a timeout error is returned
+	Timeout = 2 * time.Second
+
+	// MaxDepth is the max recursive depth to query
+	MaxDepth = 20
+
+	// MaxNameservers is the max name servers to query simultainiously
+	MaxNameservers = 1
 )
 
+// Various errors
 var (
 	ErrMaxDepth  = errors.New("Max recursion depth reached")
 	ErrMaxParent = errors.New("Max parent reached")
 	ErrNoNS      = errors.New("no NS record found for domain")
 )
 
+// Resolver is the resolver object
 type Resolver struct {
 	timeout time.Duration
 	cache   *cache
 }
 
+// New creates a new resolver
 func New() *Resolver {
 	return &Resolver{
 		timeout: Timeout,
@@ -35,7 +42,7 @@ func New() *Resolver {
 	}
 }
 
-// Resolve resolves a query, and returns all results
+// Resolve resoves a record by name and type, and returns the message of the answer
 func (r *Resolver) Resolve(qname, qtype string) (*dns.Msg, error) {
 	if !strings.HasSuffix(qname, ".") {
 		qname += "."
@@ -47,10 +54,12 @@ func (r *Resolver) Resolve(qname, qtype string) (*dns.Msg, error) {
 
 // resolveWithContext resolves a query, and returns all results, with a context handler
 func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, depth int) (*dns.Msg, error) {
+	//log.Printf("INITIAL %d query - %s %s", depth, qname, qtype)
 	msg, err := r.queryWithCache(ctx, qname, qtype, depth)
 	if err != nil {
 		return nil, err
 	}
+	//log.Printf("FINISHED %d query - %s %s\nmsg: %v\n", depth, qname, qtype, msg)
 	if qtype == "A" && len(findA(msg.Answer)) == 0 {
 		cname := findCNAME(msg.Answer)
 		if len(cname) > 0 {
@@ -74,7 +83,7 @@ func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, 
 
 // queryWithCache
 func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, depth int) (*dns.Msg, error) {
-	log.Printf("query %d - %s %s", depth, qname, qtype)
+	//log.Printf("QUERY %d - %s %s", depth, qname, qtype)
 	if depth > MaxDepth {
 		return nil, ErrMaxDepth
 	}
@@ -82,24 +91,29 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	// find requested record in cache
 	msg := r.cache.get(qname, qtype)
 	if len(msg.Answer) != 0 {
-		log.Printf("query %d done cache", depth)
+		//log.Printf("CACHED result %d", depth)
 		return msg, nil
 	}
 
 	// if record is not in cache, find the NS for the record in cache
 	// find requested record in cache
+	//log.Printf("QUERY NS %d - %s %s", depth, qname, qtype)
 	msg = r.cache.get(qname, "NS")
+	if len(msg.Answer) != 0 {
+		//log.Printf("CACHED NS result %d", depth)
+	}
+
 	nsrrs := msg.Answer
 	if len(nsrrs) == 0 {
 		// if record is not in cache, ask for the parent NS
 		pname, ok := parent(qname)
 		if !ok {
-			log.Printf("query %d done %s", depth, ErrMaxParent)
+			//log.Printf("QUERY NS %d done %s", depth, ErrMaxParent)
 			return nil, ErrMaxParent
 		}
 		var err error
 		msg, err := r.queryWithCache(ctx, pname, "NS", depth+1)
-		log.Printf("query %d query on %s %s returned: %+v", depth, pname, "NS", msg)
+		//log.Printf("QUERY NS %d query on %s %s returned: %+v", depth, pname, "NS", msg)
 		if err != nil {
 			return nil, err
 		}
@@ -112,28 +126,27 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 
 	}
 
-	log.Printf("query %d NS records for query: %s %s %+v", depth, qname, "NS", nsrrs)
+	//log.Printf("RESULT NS %d records for query: %s %s %+v", depth, qname, "NS", nsrrs)
 	// we should have NS records now to do the query
 
 	ns := findNS(nsrrs)
 	if len(ns) == 0 {
-		log.Printf("query %d done findDNS %s", depth, ErrNoNS)
+		//log.Printf("FINAL NS %d error findDNS %s", depth, ErrNoNS)
 		return nil, ErrNoNS
 	}
 
 	// if not in cache, find record on available NS's
+	//log.Printf("QUERY %d retry now on NS - %s %s", depth, qname, qtype)
 	rmsg, err := r.queryMultiple(ctx, ns, qname, qtype)
-
-	log.Printf("XXX query multiple %d done %s", depth, err)
 	if err != nil {
-		log.Printf("query multiple %d done %s", depth, err)
+		//log.Printf("QUERY %d multiple failed: %s", depth, err)
 		return nil, err
 	}
 
 	// add record to cache
 	r.cache.addMsg(rmsg)
 
-	log.Printf("query %d message: %s %s %+v", depth, qname, qtype, rmsg)
+	//log.Printf("QUERY %d FINAL message: %s %s %+v", depth, qname, qtype, rmsg)
 
 	return rmsg, nil
 }
@@ -147,24 +160,12 @@ type queryAnswer struct {
 func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype string) (*dns.Msg, error) {
 	qa := make(chan queryAnswer)
 
-	// Synchronously query this DNS server
-	/*start := time.Now()
-	timeout := r.timeout // belt and suspenders, since ctx has a deadline from ResolveErr
-	if dl, ok := ctx.Deadline(); ok {
-		timeout = dl.Sub(start)
-	}*/
-
-	log.Printf("-------------------- starting Multiple queries on %v for %s %s", ns, qname, qtype)
-
-	// setup context
-	//ctx2, cancel := context.WithTimeout(context.Background(), r.timeout)
 	ctx2, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
 	// count instances started
 	count := 0
 	for i := 0; i < MaxNameservers && i < len(ns); i++ {
-		log.Printf("-------------------- starting queries on %v for %s %s", ns[i], qname, qtype)
 		count++
 		nsq := ns[i]
 		go func() {
@@ -175,15 +176,12 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 	for {
 		select {
 		case answer := <-qa:
-			log.Printf("dns select got answer from %s", answer.server)
 			count--
 			// if we have a valid response or we ran out of servers to query, return the resolt
 			if answer.err == nil || count == 0 {
-				log.Printf("first server to reply without error: %s err: %s count:%d msg:%v", answer.server, answer.err, count, answer.msg)
 				return answer.msg, answer.err
 			}
 		case <-ctx.Done():
-			log.Printf("query multiple ctx got canceled: %s", ctx.Err())
 			return nil, ctx.Err()
 		}
 	}
@@ -191,14 +189,11 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 
 func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype string, answer chan queryAnswer) {
 	msg, err := r.querySingle(ctx, ns, qname, qtype)
-	log.Printf("querySinle returned: msg: %v, err: %s", msg, err)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("runCancel %s stop", ns)
 			return
 		default:
-			log.Printf("runOne %s stop", ns)
 
 			answer <- queryAnswer{
 				msg:    msg,
@@ -229,17 +224,8 @@ func (r *Resolver) querySingle(ctx context.Context, ns string, qname, qtype stri
 		return nil, fmt.Errorf("failed to get A record for %s", ns)
 	}
 
-	// Synchronously query this DNS server
-	/*start := time.Now()
-	timeout := r.timeout // belt and suspenders, since ctx has a deadline from ResolveErr
-	if dl, ok := ctx.Deadline(); ok {
-		timeout = dl.Sub(start)
-	}*/
-
-	log.Printf("doing a remote query on %s for %s %s", nsip[0], qname, qtype)
 	client := &dns.Client{Timeout: r.timeout} // client must finish within remaining timeout
-	rmsg, dur, err := client.ExchangeContext(ctx, qmsg, nsip[0]+":53")
-	log.Printf("query on %s of %s %s got result: %+v dur:%v err:%s", ns, qname, qtype, rmsg, dur, err)
+	rmsg, _, err := client.ExchangeContext(ctx, qmsg, nsip[0]+":53")
 	if err != nil {
 		return nil, err
 	}
@@ -300,10 +286,7 @@ func findCNAME(rrs []dns.RR) (res []string) {
 	for _, rr := range rrs {
 		if rr.Header().Rrtype == dns.TypeCNAME {
 			ip := strings.Split(rr.String(), "\t")[4]
-			/*ipp := net.ParseIP(ip)
-			if ipp.To4() == nil {*/
 			res = append(res, ip)
-			//}
 		}
 	}
 	return
