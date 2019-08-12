@@ -15,4 +15,4 @@ answer := rr.Extra[0]
 log.Printf("IP: %s", answer.(*dns.A).A)
 ```
 
-it uses the miekg dns library, and these are also the results it returns,
+it uses the miekg dns library, and these are also the results it returns
