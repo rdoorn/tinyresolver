@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"math/rand"
 
 	"github.com/miekg/dns"
 )
@@ -162,6 +163,12 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 
 	ctx2, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
+
+	// shuffle NS's so we don't always query the first server
+	for i := range ns {
+    j := rand.Intn(i + 1)
+    ns[i], ns[j] = ns[j], ns[i]
+	}
 
 	// count instances started
 	count := 0

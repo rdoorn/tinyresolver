@@ -1,7 +1,6 @@
 package tinyresolver
 
 import (
-	"log"
 	"reflect"
 	"strings"
 	"time"
@@ -70,7 +69,6 @@ func (c *cache) addRR(rr dns.RR) {
 		rr:      rr,
 		expires: time.Now().Add(time.Duration(rr.Header().Ttl) * time.Second),
 	}
-	log.Printf("cache adding: %+v", rr)
 	c.rrs = append(c.rrs, rrDetail)
 }
 
