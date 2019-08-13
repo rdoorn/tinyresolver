@@ -37,13 +37,13 @@ func (c *cache) addMsg(rmsg *dns.Msg) {
 		return
 	}
 	for _, rr := range rmsg.Ns {
-		c.addRR(rr)
+		c.addRR(dns.Copy(rr))
 	}
 	for _, rr := range rmsg.Answer {
-		c.addRR(rr)
+		c.addRR(dns.Copy(rr))
 	}
 	for _, rr := range rmsg.Extra {
-		c.addRR(rr)
+		c.addRR(dns.Copy(rr))
 	}
 }
 
@@ -86,16 +86,18 @@ func (c *cache) get(qname, qtype string) *dns.Msg {
 	now := time.Now()
 	qname = toLowerFQDN(qname)
 	dtype := dns.StringToType[qtype]
-	c.w.RLock()
+	c.w.Lock()
 	for _, rr := range c.rrs {
 		if rr.rr.Header().Rrtype == dtype && rr.rr.Header().Name == qname && now.Before(rr.expires) {
 
 			////log.Printf("expires: %v + in seconds = %v", rr.expires, rr.expires.Sub(now)/time.Second)
-			rr.rr.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
-			msg.Answer = append(msg.Answer, rr.rr)
+			res := dns.Copy(rr.rr)
+			res.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
+			//rr.rr.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
+			msg.Answer = append(msg.Answer, res)
 		}
 	}
-	c.w.RUnlock()
+	c.w.Unlock()
 	//log.Printf("CACHED search: %v %v result1:%d", qname, qtype, len(msg.Answer))
 	if len(msg.Answer) == 0 {
 		return msg
