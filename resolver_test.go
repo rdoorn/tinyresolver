@@ -30,6 +30,7 @@ type testRecord struct {
 func TestResolving(t *testing.T) {
 
 	records := []testRecord{
+
 		testRecord{
 			query: testQuery{
 				name:  "www.ghostbox.org",
@@ -374,6 +375,45 @@ func TestResolving(t *testing.T) {
 				},
 			},
 		},
+
+		testRecord{
+			query: testQuery{
+				name:  "graph.facebook.com",
+				qtype: "A",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "graph.facebook.com.",
+					qtype: "CNAME",
+					value: "api.facebook.com.",
+				},
+				testResult{
+					name:  "api.facebook.com.",
+					qtype: "CNAME",
+					value: "star.c10r.facebook.com.",
+				},
+				testResult{
+					name:  "star.c10r.facebook.com.",
+					qtype: "A",
+					value: "157.240.201.17",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "google.com",
+				qtype: "A",
+			},
+			answer: []testResult{
+				testResult{
+					name:  "google.com.",
+					qtype: "A",
+					value: "172.217.17.142",
+				},
+			},
+		},
+
 		/*
 			testRecord{
 				query: testQuery{

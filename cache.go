@@ -3,6 +3,7 @@ package tinyresolver
 import (
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -15,6 +16,7 @@ type rrDetails struct {
 
 type cache struct {
 	rrs []rrDetails
+	w   sync.RWMutex
 }
 
 // newCache creates a new cache pool
@@ -47,6 +49,9 @@ func (c *cache) addMsg(rmsg *dns.Msg) {
 
 // addRR adds a single record to the cache
 func (c *cache) addRR(rr dns.RR) {
+	c.w.Lock()
+	defer c.w.Unlock()
+	//log.Printf("CACHED ADD REQUEST object: %v", rr)
 	rr.Header().Name = toLowerFQDN(rr.Header().Name)
 	switch rr.(type) {
 	case *dns.NS:
@@ -62,6 +67,7 @@ func (c *cache) addRR(rr dns.RR) {
 			if newExpire.After(cachedrr.expires) {
 				c.rrs[id].expires = newExpire
 			}
+			//log.Printf("CACHED UPDATE EXISTING objects: %v", rr)
 			return
 		}
 	}
@@ -70,6 +76,7 @@ func (c *cache) addRR(rr dns.RR) {
 		expires: time.Now().Add(time.Duration(rr.Header().Ttl) * time.Second),
 	}
 	c.rrs = append(c.rrs, rrDetail)
+	//log.Printf("CACHED NEW objects: %v %v", rrDetail.expires, rrDetail.rr)
 }
 
 // get retreives a query from the cache
@@ -79,14 +86,17 @@ func (c *cache) get(qname, qtype string) *dns.Msg {
 	now := time.Now()
 	qname = toLowerFQDN(qname)
 	dtype := dns.StringToType[qtype]
+	c.w.RLock()
 	for _, rr := range c.rrs {
 		if rr.rr.Header().Rrtype == dtype && rr.rr.Header().Name == qname && now.Before(rr.expires) {
 
-			//log.Printf("expires: %v + in seconds = %v", rr.expires, rr.expires.Sub(now)/time.Second)
+			////log.Printf("expires: %v + in seconds = %v", rr.expires, rr.expires.Sub(now)/time.Second)
 			rr.rr.Header().Ttl = uint32(rr.expires.Sub(now) / time.Second)
 			msg.Answer = append(msg.Answer, rr.rr)
 		}
 	}
+	c.w.RUnlock()
+	//log.Printf("CACHED search: %v %v result1:%d", qname, qtype, len(msg.Answer))
 	if len(msg.Answer) == 0 {
 		return msg
 	}
@@ -112,6 +122,7 @@ func (c *cache) get(qname, qtype string) *dns.Msg {
 		}
 	}
 
+	//log.Printf("CACHED search: %v %v result2:%d", qname, qtype, len(msg.Answer))
 	return msg
 }
 
