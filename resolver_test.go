@@ -12,6 +12,7 @@ import (
 type testQuery struct {
 	name  string
 	qtype string
+	debug bool
 }
 
 type testResult struct {
@@ -395,7 +396,7 @@ func TestResolving(t *testing.T) {
 				testResult{
 					name:  "star.c10r.facebook.com.",
 					qtype: "A",
-					value: "157.240.201.17",
+					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
 				},
 			},
 		},
@@ -409,11 +410,45 @@ func TestResolving(t *testing.T) {
 				testResult{
 					name:  "google.com.",
 					qtype: "A",
-					value: "172.217.17.142",
+					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
 				},
 			},
 		},
 
+		testRecord{
+			query: testQuery{
+				name:  "ns1-2.akamai.com.",
+				qtype: "A",
+				debug: false,
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ns1-2.akam.net.",
+					qtype: "A",
+					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
+				},
+			},
+		},
+
+		testRecord{
+			query: testQuery{
+				name:  "ocsp.int-x3.letsencrypt.org.edgesuite.net.",
+				qtype: "A",
+				debug: false,
+			},
+			answer: []testResult{
+				testResult{
+					name:  "ocsp.int-x3.letsencrypt.org.edgesuite.net.",
+					qtype: "CNAME",
+					value: ".*.akamai.net.",
+				},
+				testResult{
+					name:  "a771.dscq.akamai.net.",
+					qtype: "A",
+					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.226",
+				},
+			},
+		},
 		/*
 			testRecord{
 				query: testQuery{
@@ -437,7 +472,11 @@ func TestResolving(t *testing.T) {
 		for _, record := range records {
 			// execute valid requests
 			t.Run(fmt.Sprintf("testResolving/%s_%s", record.query.name, record.query.qtype), func(t *testing.T) {
+				if record.query.debug {
+					resolver.Debug(true)
+				}
 				resolver.testResolving(t, record)
+				resolver.Debug(false)
 			})
 		}
 	})
@@ -445,7 +484,9 @@ func TestResolving(t *testing.T) {
 
 func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 	rrs, err := r.Resolve(record.query.name, record.query.qtype)
-	log.Printf("rr: %+v err:%s", rrs, err)
+	if r.debug {
+		log.Printf("rr: %+v err:%s", rrs, err)
+	}
 
 	assert.Nil(t, err)
 	if rrs == nil {
@@ -463,7 +504,7 @@ func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 				ok++
 			}
 		}
-		assert.Equal(t, 1, ok, "answer record")
+		assert.Equal(t, 1, ok, "answer record: %v", result)
 	}
 
 	for _, result := range record.ns {

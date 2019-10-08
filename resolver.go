@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"strings"
 	"sync"
@@ -35,6 +36,7 @@ var (
 type Resolver struct {
 	timeout time.Duration
 	cache   *cache
+	debug   bool
 }
 
 // New creates a new resolver
@@ -42,7 +44,13 @@ func New() *Resolver {
 	return &Resolver{
 		timeout: Timeout,
 		cache:   newCache(),
+		debug:   false,
 	}
+}
+
+// Debug enables or disables debug logging of a query
+func (r *Resolver) Debug(enable bool) {
+	r.debug = enable
 }
 
 // Resolve resoves a record by name and type, and returns the message of the answer
@@ -58,7 +66,9 @@ func (r *Resolver) Resolve(qname, qtype string) (*dns.Msg, error) {
 // resolveWithContext resolves a query, and returns all results, with a context handler
 func (r *Resolver) resolveWithContext(ctx context.Context, qname, qtype string, depth int) (*dns.Msg, error) {
 	qs := make(map[string]int)
-	//log.Printf("INITIAL %d query - %s %s", depth, qname, qtype)
+	if r.debug {
+		log.Printf("INITIAL %d query - %s %s", depth, qname, qtype)
+	}
 	//qs[qname+qtype] = true
 	msg, err := r.queryWithCache(ctx, qname, qtype, depth, qs)
 	if err != nil {
@@ -101,21 +111,25 @@ var qloc sync.Mutex
 
 // queryWithCache
 func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, depth int, qs map[string]int) (*dns.Msg, error) {
-	//log.Printf("QUERY WITH CACHE %d - %s %s", depth, qname, qtype)
+	if r.debug {
+		log.Printf("QUERY WITH CACHE %d - %s %s", depth, qname, qtype)
+	}
 	if depth > MaxDepth {
 		return nil, ErrMaxDepth
 	}
 	// find requested record in cache
 	msg := r.cache.get(qname, qtype)
 	if len(msg.Answer) != 0 {
-		//log.Printf("CACHED result %d", depth)
+		if r.debug {
+			log.Printf("CACHED result %d returns %+v", depth, msg)
+		}
 		return msg, nil
 	}
 
 	qloc.Lock()
 	if _, ok := qs[qname+"_"+qtype]; ok {
 		qs[qname+"_"+qtype]++
-		if qs[qname+"_"+qtype] > 2 {
+		if qs[qname+"_"+qtype] > 4 {
 			qloc.Unlock()
 			return nil, ErrQueryLoop
 		}
@@ -169,9 +183,25 @@ func (r *Resolver) queryWithCache(ctx context.Context, qname, qtype string, dept
 	//log.Printf("QUERY %d retry now on NS - %s %s", depth, qname, qtype)
 	rmsg, err := r.queryMultiple(ctx, ns, qname, qtype, qs, depth)
 	if err != nil {
-		//log.Printf("QUERY %d multiple failed: %s", depth, err)
+		//log.Printf("QUERY %d multiple failed: %s %s -> %s", depth, qname, qtype, err)
 		return nil, err
 	}
+
+	//log.Printf("FINISHED %d query - %s %s\nmsg: %v\n", depth, qname, qtype, msg)
+	for qtype == "A" && len(findA(rmsg.Answer)) == 0 && depth < MaxDepth {
+		cname := findCNAME(rmsg.Answer)
+		if len(cname) == 0 {
+			break
+		}
+		depth++
+		// follow the latest cname added
+		msg2, err := r.queryWithCache(ctx, cname[len(cname)-1], "A", depth, qs)
+		if err == nil {
+			rmsg.Answer = append(rmsg.Answer, msg2.Answer...)
+		}
+	}
+
+	//log.Printf("QUERY %d multiple ok!: %s %s -> %s", depth, qname, qtype, err)
 
 	// add record to cache
 	r.cache.addMsg(rmsg)
@@ -215,11 +245,15 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 			count--
 			// if we have a valid response or we ran out of servers to query, return the resolt
 			if answer.err == nil || count == 0 {
-				//log.Printf("QUERY MULTIPLE RESULT %d: %s %s @%s err:%s", depth, qname, qtype, answer.server, answer.err)
+				if r.debug {
+					log.Printf("QUERY MULTIPLE RESULT %d: %s %s @%s err:%s\n msg:%+v", depth, qname, qtype, answer.server, answer.err, answer.msg)
+				}
 				return answer.msg, answer.err
 			}
 		case <-ctx.Done():
-			//log.Printf("QUERY MULTIPLE CTX %d: %s %s", depth, qname, qtype)
+			if r.debug {
+				log.Printf("QUERY MULTIPLE CTX %d: %s %s", depth, qname, qtype)
+			}
 			return nil, ctx.Err()
 		}
 	}
