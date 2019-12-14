@@ -445,10 +445,36 @@ func TestResolving(t *testing.T) {
 				testResult{
 					name:  "a771.dscq.akamai.net.",
 					qtype: "A",
-					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.226",
+					//value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.d{1,3}",
+					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.26",
 				},
 			},
 		},
+
+		testRecord{
+			query: testQuery{
+				name:  "mxa-00271601.gslb.pphosted.com.",
+				qtype: "A",
+				debug: false,
+			},
+			answer: []testResult{
+				testResult{
+					name:  "mxa-00271601.gslb.pphosted.com.",
+					qtype: "A",
+					//value: "62.209.51.218",
+					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
+				},
+				/*
+					testResult{
+						name:  "a771.dscq.akamai.net.",
+						qtype: "A",
+						value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.d{1,3}",
+					},*/
+			},
+		},
+
+		// mxa-00271601.gslb.pphosted.com.
+
 		/*
 			testRecord{
 				query: testQuery{
@@ -505,6 +531,7 @@ func (r *Resolver) testResolving(t *testing.T, record testRecord) {
 			}
 		}
 		assert.Equal(t, 1, ok, "answer record: %v", result)
+		log.Printf("rrs: %+v", rrs)
 	}
 
 	for _, result := range record.ns {
