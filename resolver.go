@@ -218,10 +218,12 @@ type queryAnswer struct {
 }
 
 func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype string, qs map[string]int, depth int) (*dns.Msg, error) {
-	qa := make(chan queryAnswer)
+	qa := make(chan queryAnswer, len(ns)+1)
+	defer close(qa)
 
 	ctx2, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
+	defer ctx2.Done()
 
 	// shuffle NS's so we don't always query the first server
 	for i := range ns {
@@ -260,7 +262,13 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 }
 
 func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype string, answer chan queryAnswer, qs map[string]int, depth int) {
-	//log.Printf("QUERY SINGLE %d: %s %s @%s", depth, qname, qtype, ns)
+	defer func() {
+		if recover() != nil {
+			return
+		}
+	}()
+
+	//defer log.Printf("single query end ns:%s qname:%s qtype:%s", ns, qname, qtype)
 	msg, err := r.querySingle(ctx, ns, qname, qtype, qs)
 	for {
 		select {

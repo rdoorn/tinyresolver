@@ -5,6 +5,7 @@ import (
 	"log"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,6 +32,21 @@ type testRecord struct {
 func TestResolving(t *testing.T) {
 
 	records := []testRecord{
+
+		testRecord{
+			query: testQuery{
+				name:  "org.",
+				qtype: "NS",
+				//debug: true,
+			},
+			ns: []testResult{
+				testResult{
+					name:  "org.",
+					qtype: "NS",
+					value: "a2.org.afilias-nst.info.",
+				},
+			},
+		},
 
 		testRecord{
 			query: testQuery{
@@ -432,27 +448,6 @@ func TestResolving(t *testing.T) {
 
 		testRecord{
 			query: testQuery{
-				name:  "ocsp.int-x3.letsencrypt.org.edgesuite.net.",
-				qtype: "A",
-				debug: false,
-			},
-			answer: []testResult{
-				testResult{
-					name:  "ocsp.int-x3.letsencrypt.org.edgesuite.net.",
-					qtype: "CNAME",
-					value: ".*.akamai.net.",
-				},
-				testResult{
-					name:  "a771.dscq.akamai.net.",
-					qtype: "A",
-					//value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.d{1,3}",
-					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.26",
-				},
-			},
-		},
-
-		testRecord{
-			query: testQuery{
 				name:  "mxa-00271601.gslb.pphosted.com.",
 				qtype: "A",
 				debug: false,
@@ -464,14 +459,30 @@ func TestResolving(t *testing.T) {
 					//value: "62.209.51.218",
 					value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
 				},
-				/*
+			},
+		},
+
+		/*
+			testRecord{
+				query: testQuery{
+					name:  "ocsp.int-x3.letsencrypt.org.edgesuite.net.",
+					qtype: "A",
+					debug: false,
+				},
+				answer: []testResult{
+					testResult{
+						name:  "ocsp.int-x3.letsencrypt.org.edgesuite.net.",
+						qtype: "CNAME",
+						value: ".*.akamai.net.",
+					},
 					testResult{
 						name:  "a771.dscq.akamai.net.",
 						qtype: "A",
-						value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.d{1,3}",
-					},*/
-			},
-		},
+						//value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.d{1,3}",
+						value: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.226",
+					},
+				},
+			},*/
 
 		// mxa-00271601.gslb.pphosted.com.
 
@@ -506,6 +517,8 @@ func TestResolving(t *testing.T) {
 			})
 		}
 	})
+
+	time.Sleep(1 * time.Second)
 }
 
 func (r *Resolver) testResolving(t *testing.T, record testRecord) {
