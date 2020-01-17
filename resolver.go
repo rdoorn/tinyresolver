@@ -37,6 +37,7 @@ type Resolver struct {
 	timeout time.Duration
 	cache   *cache
 	debug   bool
+	m       sync.RWMutex
 }
 
 // New creates a new resolver
@@ -50,6 +51,8 @@ func New() *Resolver {
 
 // Debug enables or disables debug logging of a query
 func (r *Resolver) Debug(enable bool) {
+	r.m.Lock()
+	defer r.m.Unlock()
 	r.debug = enable
 }
 
@@ -218,12 +221,10 @@ type queryAnswer struct {
 }
 
 func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype string, qs map[string]int, depth int) (*dns.Msg, error) {
-	qa := make(chan queryAnswer, len(ns)+1)
-	defer close(qa)
+	qa := make(chan queryAnswer)
 
 	ctx2, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	defer ctx2.Done()
 
 	// shuffle NS's so we don't always query the first server
 	for i := range ns {
@@ -262,27 +263,32 @@ func (r *Resolver) queryMultiple(ctx context.Context, ns []string, qname, qtype 
 }
 
 func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype string, answer chan queryAnswer, qs map[string]int, depth int) {
-	defer func() {
+	/*defer func() {
 		if recover() != nil {
 			return
 		}
-	}()
+	}()*/
 
+	//log.Printf("single query start ns:%s qname:%s qtype:%s", ns, qname, qtype)
 	//defer log.Printf("single query end ns:%s qname:%s qtype:%s", ns, qname, qtype)
 	msg, err := r.querySingle(ctx, ns, qname, qtype, qs)
 	for {
 		select {
 		case <-ctx.Done():
-			//log.Printf("QUERY SINGLE FIN CTX %d: %s %s @%s returned result", depth, qname, qtype, ns)
 			return
 		default:
+		}
 
-			//log.Printf("QUERY SINGLE %d: %s %s @%s returned result", depth, qname, qtype, ns)
-			answer <- queryAnswer{
-				msg:    msg,
-				err:    err,
-				server: ns,
-			}
+		select {
+		case <-ctx.Done():
+			return
+
+		//log.Printf("QUERY SINGLE %d: %s %s @%s returned result", depth, qname, qtype, ns)
+		case answer <- queryAnswer{
+			msg:    msg,
+			err:    err,
+			server: ns,
+		}:
 			//log.Printf("QUERY SINGLE FIN ANSWER %d: %s %s @%s returned result", depth, qname, qtype, ns)
 			return
 		}

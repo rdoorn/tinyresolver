@@ -435,7 +435,6 @@ func TestResolving(t *testing.T) {
 			query: testQuery{
 				name:  "ns1-2.akamai.com.",
 				qtype: "A",
-				debug: false,
 			},
 			answer: []testResult{
 				testResult{
@@ -450,7 +449,6 @@ func TestResolving(t *testing.T) {
 			query: testQuery{
 				name:  "mxa-00271601.gslb.pphosted.com.",
 				qtype: "A",
-				debug: false,
 			},
 			answer: []testResult{
 				testResult{
@@ -509,11 +507,11 @@ func TestResolving(t *testing.T) {
 		for _, record := range records {
 			// execute valid requests
 			t.Run(fmt.Sprintf("testResolving/%s_%s", record.query.name, record.query.qtype), func(t *testing.T) {
-				if record.query.debug {
+				/*if record.query.debug {
 					resolver.Debug(true)
-				}
+				}*/
 				resolver.testResolving(t, record)
-				resolver.Debug(false)
+				//resolver.Debug(false)
 			})
 		}
 	})
