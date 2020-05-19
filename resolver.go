@@ -284,46 +284,48 @@ func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype 
 	//if qtype == "NS" && len(msg.answer rdoorn
 
 	//log.Printf("single query reply: %+v", msg)
-	if qtype == "NS" && msg.Extra == nil {
-		msg.Extra = []dns.RR{}
-	}
-	if qtype == "NS" && len(findA(msg.Answer)) == 0 && len(findA(msg.Extra)) == 0 {
-		///log.Printf("depth:%d got NS servers, but no A records, querying seperately", depth)
-		for _, qns := range findNS(msg.Answer) {
-			///log.Printf("depth:%d find NS from answer: %s", depth, qns)
-			msg2, err2 := r.querySingle(ctx, ns, qns, "A", qs, depth)
-			///log.Printf("depth:%d find NS result: %+v, %s", depth, msg2, err2)
-			if err2 == nil {
-				msg.Extra = append(msg.Extra, msg2.Answer...)
+	if err == nil {
+		if qtype == "NS" && msg.Extra == nil {
+			msg.Extra = []dns.RR{}
+		}
+		if qtype == "NS" && len(findA(msg.Answer)) == 0 && len(findA(msg.Extra)) == 0 {
+			///log.Printf("depth:%d got NS servers, but no A records, querying seperately", depth)
+			for _, qns := range findNS(msg.Answer) {
+				///log.Printf("depth:%d find NS from answer: %s", depth, qns)
+				msg2, err2 := r.querySingle(ctx, ns, qns, "A", qs, depth)
+				///log.Printf("depth:%d find NS result: %+v, %s", depth, msg2, err2)
+				if err2 == nil {
+					msg.Extra = append(msg.Extra, msg2.Answer...)
+				}
 			}
 		}
-	}
 
-	if qtype == "NS" && len(findA(msg.Answer)) != len(findA(msg.Extra)) {
+		if qtype == "NS" && len(findA(msg.Answer)) != len(findA(msg.Extra)) {
 
-		foundNS := findNameOfA(msg.Extra)
+			foundNS := findNameOfA(msg.Extra)
 
-		remove := []int{}
-		// go through answers
-		for aid, a := range msg.Answer {
-			if a.Header().Rrtype == dns.TypeNS {
-				// go through ip's in extras
-				found := false
-				for _, f := range foundNS {
-					///log.Printf("checking if [%s] contains [%s]", a.String(), f)
-					if strings.Contains(a.String(), f) {
-						found = true
+			remove := []int{}
+			// go through answers
+			for aid, a := range msg.Answer {
+				if a.Header().Rrtype == dns.TypeNS {
+					// go through ip's in extras
+					found := false
+					for _, f := range foundNS {
+						///log.Printf("checking if [%s] contains [%s]", a.String(), f)
+						if strings.Contains(a.String(), f) {
+							found = true
+						}
+					}
+
+					if !found {
+						remove = append(remove, aid)
 					}
 				}
-
-				if !found {
-					remove = append(remove, aid)
-				}
 			}
-		}
-		sort.Sort(sort.Reverse(sort.IntSlice(remove)))
-		for _, s := range remove {
-			msg.Answer = append(msg.Answer[:s], msg.Answer[s+1:]...)
+			sort.Sort(sort.Reverse(sort.IntSlice(remove)))
+			for _, s := range remove {
+				msg.Answer = append(msg.Answer[:s], msg.Answer[s+1:]...)
+			}
 		}
 	}
 
