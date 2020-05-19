@@ -12,8 +12,8 @@ var root = `
 ;           on server           FTP.INTERNIC.NET
 ;       -OR-                    RS.INTERNIC.NET
 ;
-;       last update:     August 29, 2017
-;       related version of root zone:     2017082901
+;       last update:     April 29, 2020
+;       related version of root zone:     2020042901
 ;
 ; FORMERLY NS.INTERNIC.NET
 ;
@@ -24,7 +24,7 @@ A.ROOT-SERVERS.NET.      3600000      AAAA  2001:503:ba3e::2:30
 ; FORMERLY NS1.ISI.EDU
 ;
 .                        3600000      NS    B.ROOT-SERVERS.NET.
-B.ROOT-SERVERS.NET.      3600000      A     192.228.79.201
+B.ROOT-SERVERS.NET.      3600000      A     199.9.14.201
 B.ROOT-SERVERS.NET.      3600000      AAAA  2001:500:200::b
 ;
 ; FORMERLY C.PSI.NET
@@ -91,5 +91,4 @@ L.ROOT-SERVERS.NET.      3600000      AAAA  2001:500:9f::42
 ;
 .                        3600000      NS    M.ROOT-SERVERS.NET.
 M.ROOT-SERVERS.NET.      3600000      A     202.12.27.33
-M.ROOT-SERVERS.NET.      3600000      AAAA  2001:dc3::35
-; End of file`
+M.ROOT-SERVERS.NET.      3600000      AAAA  2001:dc3::35`
