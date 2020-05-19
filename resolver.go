@@ -284,6 +284,9 @@ func (r *Resolver) querySingleChan(ctx context.Context, ns string, qname, qtype 
 	//if qtype == "NS" && len(msg.answer rdoorn
 
 	//log.Printf("single query reply: %+v", msg)
+	if qtype == "NS" && msg.Extra == nil {
+		msg.Extra = []dns.RR{}
+	}
 	if qtype == "NS" && len(findA(msg.Answer)) == 0 && len(findA(msg.Extra)) == 0 {
 		///log.Printf("depth:%d got NS servers, but no A records, querying seperately", depth)
 		for _, qns := range findNS(msg.Answer) {
